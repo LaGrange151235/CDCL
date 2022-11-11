@@ -208,7 +208,7 @@ def analyze_conflict(assignment, decided_idxs, conflict_ante):
     d = 0
     if len(decided_idxs) > 0:
         d = decided_idxs[-1]
-    if d == 0:
+    if d == -1:
         backtrack_level = -1
         learned_clause = []
         return backtrack_level, learned_clause
@@ -285,6 +285,7 @@ def cdcl(sentence, num_vars):
     while len(assignment) < num_vars:
         # NOTE: Here we add another arg 'assignment' 
         #       to avoid choose the same var twice
+        decided_idxs.append(-1)
         assigned_lit = decide_vsids(vsids_scores, assignment)
         decided_idxs.append(len(assignment))
         assignment.append(assigned_lit)
