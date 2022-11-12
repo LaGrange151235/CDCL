@@ -1,90 +1,79 @@
+import math
+def index_of_lit(assignment, lit):
+    for i, dic in enumerate(assignment):
+        if dic[0] == lit:
+            return i
+
+def index_of_clause(sentence, clause):
+    for i, c in enumerate(sentence):
+        if clause == c:
+            return i
+
 def bcp(sentence, assignment, c2l_watch, l2c_watch):
     """Propagate unit clauses with watched literals."""
 
     """ YOUR CODE HERE """
-    def update(clause, x, y):
-        for lit in clause:
-            if -lit not in assignment and lit != x and lit != y:
-                if -x == c2l_watch[str(clause)][0]:
-                    c2l_watch[str(clause)][0] = lit
-                if -x == c2l_watch[str(clause)][1]:
-                    c2l_watch[str(clause)][1] = lit
-                return True
-        return False
+    assign_list = []
+    for dic in assignment:
+        assign_list.append(dic[0])
 
-    trail = []
-    unit_clauses = []
-    up_idx = 0
+    last_clause = sentence[len(sentence)-1]
+    ifunit = 0
+    lit_to_assign = 0
+    for lit in last_clause:
+        if -lit in assign_list:
+            ifunit += 1
+        else:
+            lit_to_assign = lit
+    if ifunit == len(last_clause) - 1 and lit_to_assign not in assign_list:
+        dic = {}
+        dic[0] = lit_to_assign
+        dic[1] = last_clause
+        assignment.append(dic)
+        assign_list.append(lit_to_assign)
 
-    for clause in sentence:
-        if len(clause) == 1:
-            unit_clauses.append(clause)
-            continue
+    up_idx = len(assignment) - 1 if len(assignment) > 0 else 0
 
-        x = c2l_watch[str(clause)][0]
-        y = c2l_watch[str(clause)][1]
-        if -x in assignment:
-            if y in assignment:
-                continue
-            else:
-                for lit in clause:
-                    if -lit not in assignment and lit != x and lit != y:
-                        c2l_watch[str(clause)][0] = lit
-                        x = lit
-                        break
-        if -y in assignment:
-            if x in assignment:
-                continue
-            else:
-                for lit in clause:
-                    if -lit not in assignment and lit != x and lit != y:
-                        c2l_watch[str(clause)][1] = lit
-                        y = lit
-                        break
-        if -x in assignment or -y in assignment:
-            unit_clauses.append(clause)
-
-    #print(unit_clauses)
-    if len(trail) == 0:
-        for clause in unit_clauses:
+    if len(assignment) == 0:
+        for clause in sentence:
             if len(clause) == 1:
-                assignment.append(c2l_watch[str(clause)][0])
-                trail.append([c2l_watch[str(clause)][0], clause])
-                continue
-            if -c2l_watch[str(clause)][0] in assignment:
-                if c2l_watch[str(clause)][1] not in assignment:
-                    assignment.append(c2l_watch[str(clause)][1])
-                    trail.append([c2l_watch[str(clause)][1], clause])
-            if -c2l_watch[str(clause)][1] in assignment:
-                if c2l_watch[str(clause)][0] not in assignment:
-                    assignment.append(c2l_watch[str(clause)][0])
-                    trail.append([c2l_watch[str(clause)][0], clause])
-    
-    while up_idx < len(trail):
-        x = trail[up_idx][0]
+                dic = {}
+                dic[0] = clause[0]
+                dic[1] = clause
+                assignment.append(dic)
+                assign_list.append(dic[0])
+
+    while up_idx < len(assignment):
+        x = assignment[up_idx][0]
         up_idx += 1
+
         for clause in l2c_watch[-x]:
-            if -x not in c2l_watch[str(clause)]:
+            if len(clause) == 1:
+                return clause
+            k = index_of_clause(sentence, clause)
+            y = c2l_watch[k][1] if -x == c2l_watch[k][0] else c2l_watch[k][0]
+            if y in assign_list:
                 continue
-            if -x == c2l_watch[str(clause)][0]:
-                y = c2l_watch[str(clause)][1]
-            if -x == c2l_watch[str(clause)][1]:
-                y = c2l_watch[str(clause)][0]
-            
-            if y in assignment:
-                continue
-            else:
-                if update(clause, x, y):
-                    continue
-                elif -y in assignment:
-                    trail.append([0, clause])
-                    print(len(assignment))
-                    return trail
+            flag = False
+            for z in clause:
+                if -z not in assign_list and z != -x and z != y:
+                    l2c_watch[-x].remove(clause)
+                    l2c_watch[z].append(clause)
+                    c2l_watch[k].remove(-x)
+                    c2l_watch[k].append(z)
+                    flag = True
+                    break
+            if not flag:
+                if -y in assign_list:
+                    return clause
                 else:
-                    assignment.append(y)
-                    trail.append([y, clause])
-                
-    print(len(assignment))
+                    dic = {}
+                    dic[0] = y
+                    dic[1] = clause
+                    assignment.append(dic)
+                    assign_list.append(y)
+                    """print(dic)"""
+
     return None  # indicate no conflict; other return the antecedent of the conflict
 
 def init_vsids_scores(sentence, num_vars):
@@ -92,25 +81,29 @@ def init_vsids_scores(sentence, num_vars):
     scores = {}
 
     """ YOUR CODE HERE """
-    for i in range(num_vars):
-        scores[i+1] = 0
-        scores[-i-1] = 0
+    for i in range(-num_vars, num_vars+1):
+        scores[i] = 0
+
     for clause in sentence:
         for lit in clause:
             scores[lit] += 1
+
     return scores
 
-def decide_vsids(vsids_scores, assignment):
+def decide_vsids(assignment, vsids_scores):
     """Decide which variable to assign and whether to assign True or False."""
     assigned_lit = None
 
     """ YOUR CODE HERE """
-    max_score = 0
-    for lit, score in vsids_scores.items():
-        if score >= max_score and lit not in assignment and -lit not in assignment:
-            max_score = score
+    assign_list = []
+    for dic in assignment:
+        assign_list.append(dic[0])
+    max = 0
+    for lit in vsids_scores:
+        if vsids_scores[lit] > max and lit not in assign_list and -lit not in assign_list:
+            max = vsids_scores[lit]
             assigned_lit = lit
-    #print("decide:", assigned_lit)
+
     return assigned_lit
 
 def update_vsids_scores(vsids_scores, learned_clause, decay=0.95):
@@ -127,19 +120,19 @@ def init_watch(sentence, num_vars):
     l2c_watch = {}  # literal -> watch
 
     """ YOUR CODE HERE """
-    for i in range(num_vars):
-        l2c_watch[i+1] = []
-        l2c_watch[-i-1] = []
-    for clause in sentence:
-        c2l_watch[str(clause)] = []
-        c2l_watch[str(clause)].append(clause[0])
-        if len(clause) >= 2:
-            c2l_watch[str(clause)].append(clause[1])
-        for lit in clause:
-            l2c_watch[lit].append(clause)
 
-    #print("c2l_watch:", c2l_watch)
-    #print("l2c_watch:", l2c_watch)
+    for i in range(-num_vars, num_vars + 1):
+        l2c_watch[i] = []
+
+    for i, clause in enumerate(sentence):
+        c2l_watch[i] = []
+        for lit in clause:
+            if len(c2l_watch[i]) < 2:
+                c2l_watch[i].append(lit)
+                l2c_watch[lit].append(clause)
+            else:
+                break
+
     return c2l_watch, l2c_watch
 
 def analyze_conflict(assignment, decided_idxs, conflict_ante):
@@ -147,95 +140,65 @@ def analyze_conflict(assignment, decided_idxs, conflict_ante):
     backtrack_level, learned_clause = None, []
 
     """ YOUR CODE HERE """
-    def resolve(clause, c, lit):
-        resolved = clause+c
-        resolved = list(set(resolved))
-        resolved.remove(lit)
-        resolved.remove(-lit)
-        return resolved
-    def one_lit_at_level(c, d, assignment):
+    if len(decided_idxs) == 0:
+        return -1, []
+    c = conflict_ante
+    latest_decided = decided_idxs[len(decided_idxs)-1]
+
+    while True:
         cnt = 0
         for lit in c:
-            if lit in assignment:
-                if assignment.index(lit) >= d:
-                    cnt += 1
-            if -lit in assignment:
-                if assignment.index(-lit) >= d:
-                    cnt += 1
-        if cnt > 1:
-            return False
-        if cnt <= 1:
-            return True
-    def idx2level(idx, decided_idxs):
-        level = decided_idxs[-1]
-        for level_idx in decided_idxs:
-            if idx >= level_idx:
-                level = level_idx
-            if idx < level_idx:
-                break
-        return level
-    def second_highest_decision_level(c, assignment, decided_idxs):
-        idx_list = []
-        level_list = []
-        for lit in c:
-            if lit in assignment:
-                idx_list.append(assignment.index(lit))
-                level_list.append(idx2level(assignment.index(lit), decided_idxs))
-                continue
-            if -lit in assignment:
-                idx_list.append(assignment.index(-lit))
-                level_list.append(idx2level(assignment.index(-lit), decided_idxs))
-        level_list = list(set(level_list))
-        level_list = sorted(level_list, reverse=True)
-        if len(level_list) == 1:
-            return level_list[0]
-        if len(level_list) >= 2:
-            return level_list[1]     
+            if index_of_lit(assignment, -lit) >= latest_decided:
+                cnt += 1
+        if cnt == 1:
+            break
+        dic = assignment.pop()
+        if -dic[0] in c:
+            c.remove(-dic[0])
+            tmp = dic[1]
+            tmp.remove(dic[0])
+            c = list(set(c).union(tmp))
 
-    #print("analyze assignment:", assignment)
-    #print("analyze decided idxs:", decided_idxs)
-    #print("analyze conflict ante:", conflict_ante)
-    if decided_idxs == []:
-        return -1, []
-    c = conflict_ante.pop()[1]
-    d = decided_idxs[-1]
-    while not one_lit_at_level(c, d, assignment) and conflict_ante != []:
-        lit, clause = conflict_ante.pop()
-        if -lit in c:
-            c = resolve(clause, c, lit)
-            #print(c)
-    backtrack_level = second_highest_decision_level(c, assignment, decided_idxs)
     learned_clause = c
-    #print("analyze result => backtrack level:", backtrack_level, "learned clause:", learned_clause)
+    print(learned_clause)
+
+    idx = []
+    for lit in learned_clause:
+        idx.append(index_of_lit(assignment, -lit))
+    if len(idx) == 1:
+        backtrack_level = 0
+    else:
+        idx.sort(reverse=True)
+        max2 = idx[1]
+        for i, value in enumerate(decided_idxs):
+            if value > max2:
+                backtrack_level = i
+                break
+
     return backtrack_level, learned_clause
 
 def backtrack(assignment, decided_idxs, level):
     """Backtrack by deleting assigned variables."""
 
     """ YOUR CODE HERE """
-    #print("backtrack assignment:", assignment)
-    ##print("backtrack decided idxs:", decided_idxs)
-    #print("backtrack level:", level)
-    while len(assignment) > level+1:
+    length = decided_idxs[level]
+    for i in range(length, len(assignment)):
         assignment.pop()
-    while decided_idxs[-1] != level:
+    for i in range(level, len(decided_idxs)):
         decided_idxs.pop()
-    decided_idxs.pop()
-    assignment[-1] *= -1
-    #print("backtrack assignment:", assignment)
-    #print("backtrack decided idxs:", decided_idxs)
 
 def add_learned_clause(sentence, learned_clause, c2l_watch, l2c_watch):
     """Add learned clause to the sentence and update watch."""
 
     """ YOUR CODE HERE """
     sentence.append(learned_clause)
-    if len(learned_clause) >= 2:
-        c2l_watch[str(learned_clause)] = [learned_clause[0], learned_clause[1]]
-    if len(learned_clause) == 1:
-        c2l_watch[str(learned_clause)] = [learned_clause[0]]
+    c2l_watch[str(learned_clause)] = []
     for lit in learned_clause:
-        l2c_watch[lit].append(learned_clause)
+        if len(c2l_watch[str(learned_clause)]) < 2:
+            c2l_watch[str(learned_clause)].append(lit)
+            l2c_watch[lit].append(learned_clause)
+        else:
+            break
 
 def cdcl(sentence, num_vars):
     """Run a CDCL solver for the SAT problem.
@@ -255,9 +218,12 @@ def cdcl(sentence, num_vars):
 
     # Main loop.
     while len(assignment) < num_vars:
-        assigned_lit = decide_vsids(vsids_scores, assignment)
+        assigned_lit = decide_vsids(assignment, vsids_scores)
         decided_idxs.append(len(assignment))
-        assignment.append(assigned_lit)
+        dic = {}
+        dic[0] = assigned_lit
+        dic[1] = []
+        assignment.append(dic)
 
         # Run BCP.
         conflict_ante = bcp(sentence, assignment, c2l_watch, l2c_watch)
@@ -277,5 +243,10 @@ def cdcl(sentence, num_vars):
 
             # Propagate watch.
             conflict_ante = bcp(sentence, assignment, c2l_watch, l2c_watch)
-
-    return assignment  # indicate SAT
+            print("conflict")
+            print(decided_idxs)
+            print(conflict_ante)
+    assignment_final = []
+    for dic in assignment:
+        assignment_final.append(dic[0])
+    return assignment_final # indicate SAT
