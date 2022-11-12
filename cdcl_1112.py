@@ -2,45 +2,40 @@ def bcp(sentence, assignment, c2l_watch, l2c_watch):
     """Propagate unit clauses with watched literals."""
 
     """ YOUR CODE HERE """
-    def update(clause, x, y):
+    def update(clause, x, y, c2l_watch, assignment):
         for lit in clause:
             if -lit not in assignment and lit != x and lit != y:
-                if -x == c2l_watch[str(clause)][0]:
+                if x == c2l_watch[str(clause)][0]:
                     c2l_watch[str(clause)][0] = lit
-                if -x == c2l_watch[str(clause)][1]:
+                if x == c2l_watch[str(clause)][1]:
                     c2l_watch[str(clause)][1] = lit
-                return True
-        return False
+                return True # update successful
+        return False        # update failed
 
     trail = []
     unit_clauses = []
     up_idx = 0
 
+    # find unit clauses
     for clause in sentence:
+        # unary clause
         if len(clause) == 1:
-            unit_clauses.append(clause)
+            if clause[0] not in assignment:
+                unit_clauses.append(clause)
             continue
-
+        # other clause
         x = c2l_watch[str(clause)][0]
         y = c2l_watch[str(clause)][1]
         if -x in assignment:
             if y in assignment:
                 continue
             else:
-                for lit in clause:
-                    if -lit not in assignment and lit != x and lit != y:
-                        c2l_watch[str(clause)][0] = lit
-                        x = lit
-                        break
+                update(clause, x, y, c2l_watch, assignment)
         if -y in assignment:
             if x in assignment:
                 continue
             else:
-                for lit in clause:
-                    if -lit not in assignment and lit != x and lit != y:
-                        c2l_watch[str(clause)][1] = lit
-                        y = lit
-                        break
+                update(clause, y, x, c2l_watch, assignment)
         if -x in assignment or -y in assignment:
             unit_clauses.append(clause)
 
@@ -48,17 +43,20 @@ def bcp(sentence, assignment, c2l_watch, l2c_watch):
     if len(trail) == 0:
         for clause in unit_clauses:
             if len(clause) == 1:
-                assignment.append(c2l_watch[str(clause)][0])
-                trail.append([c2l_watch[str(clause)][0], clause])
+                if c2l_watch[str(clause)][0] not in assignment:
+                    assignment.append(c2l_watch[str(clause)][0])
+                    trail.append([c2l_watch[str(clause)][0], clause])
                 continue
             if -c2l_watch[str(clause)][0] in assignment:
                 if c2l_watch[str(clause)][1] not in assignment:
                     assignment.append(c2l_watch[str(clause)][1])
                     trail.append([c2l_watch[str(clause)][1], clause])
+                continue
             if -c2l_watch[str(clause)][1] in assignment:
                 if c2l_watch[str(clause)][0] not in assignment:
                     assignment.append(c2l_watch[str(clause)][0])
                     trail.append([c2l_watch[str(clause)][0], clause])
+                continue
     
     while up_idx < len(trail):
         x = trail[up_idx][0]
@@ -73,18 +71,18 @@ def bcp(sentence, assignment, c2l_watch, l2c_watch):
             
             if y in assignment:
                 continue
+            
+            if update(clause, -x, y, c2l_watch, assignment):
+                continue
+            elif -y in assignment:
+                trail.append([0, clause])
+                print("bcp assignment len:", len(assignment), " will backtrack")
+                return trail
             else:
-                if update(clause, x, y):
-                    continue
-                elif -y in assignment:
-                    trail.append([0, clause])
-                    print(len(assignment))
-                    return trail
-                else:
-                    assignment.append(y)
-                    trail.append([y, clause])
+                assignment.append(y)
+                trail.append([y, clause])
                 
-    print(len(assignment))
+    print("bcp assignment len:", len(assignment), " won't backtrack")
     return None  # indicate no conflict; other return the antecedent of the conflict
 
 def init_vsids_scores(sentence, num_vars):
@@ -106,11 +104,15 @@ def decide_vsids(vsids_scores, assignment):
 
     """ YOUR CODE HERE """
     max_score = 0
+    min_score = len(vsids_scores)
     for lit, score in vsids_scores.items():
         if score >= max_score and lit not in assignment and -lit not in assignment:
             max_score = score
             assigned_lit = lit
-    #print("decide:", assigned_lit)
+        if score <= min_score:
+            min_score = score
+    vsids_scores[assigned_lit] = min_score*0.95
+    print("decide:", assigned_lit)
     return assigned_lit
 
 def update_vsids_scores(vsids_scores, learned_clause, decay=0.95):
@@ -187,14 +189,15 @@ def analyze_conflict(assignment, decided_idxs, conflict_ante):
                 level_list.append(idx2level(assignment.index(-lit), decided_idxs))
         level_list = list(set(level_list))
         level_list = sorted(level_list, reverse=True)
+        print("level_list:", level_list)
         if len(level_list) == 1:
             return level_list[0]
         if len(level_list) >= 2:
             return level_list[1]     
 
     #print("analyze assignment:", assignment)
-    #print("analyze decided idxs:", decided_idxs)
-    #print("analyze conflict ante:", conflict_ante)
+    print("analyze decided idxs:", decided_idxs)
+    print("analyze conflict ante:", conflict_ante)
     if decided_idxs == []:
         return -1, []
     c = conflict_ante.pop()[1]
@@ -206,7 +209,7 @@ def analyze_conflict(assignment, decided_idxs, conflict_ante):
             #print(c)
     backtrack_level = second_highest_decision_level(c, assignment, decided_idxs)
     learned_clause = c
-    #print("analyze result => backtrack level:", backtrack_level, "learned clause:", learned_clause)
+    print("analyze result => backtrack level:", backtrack_level, "learned clause:", learned_clause)
     return backtrack_level, learned_clause
 
 def backtrack(assignment, decided_idxs, level):
@@ -214,16 +217,17 @@ def backtrack(assignment, decided_idxs, level):
 
     """ YOUR CODE HERE """
     #print("backtrack assignment:", assignment)
-    ##print("backtrack decided idxs:", decided_idxs)
-    #print("backtrack level:", level)
-    while len(assignment) > level+1:
+    print("backtrack decided idxs:", decided_idxs)
+    print("backtrack level:", level)
+    while len(assignment) > level:
         assignment.pop()
-    while decided_idxs[-1] != level:
+    while True:
+        if decided_idxs[-1] == level:
+            decided_idxs.pop()
+            break    
         decided_idxs.pop()
-    decided_idxs.pop()
-    assignment[-1] *= -1
-    #print("backtrack assignment:", assignment)
-    #print("backtrack decided idxs:", decided_idxs)
+    #print("backtrack assignment:", assignment, len(assignment))
+    print("backtrack decided idxs:", decided_idxs)
 
 def add_learned_clause(sentence, learned_clause, c2l_watch, l2c_watch):
     """Add learned clause to the sentence and update watch."""

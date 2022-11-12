@@ -23,6 +23,20 @@ def main(args):
     if res is None:
         print("✘ No solution found")
     else:
+        solved = {}
+        for clause in sentence:
+            solved[str(clause)] = False
+        for clause in sentence:
+            for lit in res:
+                if lit in clause:
+                    solved[str(clause)] = True
+                    break
+        for clause in sentence:
+            if solved[str(clause)] == False:
+                print(f"✔ Successfully found a fake solution: {res}", "\n\nunsolved clause:", clause)
+                return
+
+            
         print(f"✔ Successfully found a solution: {res}")
 
 if __name__ == "__main__":
